@@ -1032,6 +1032,15 @@ const teacherKeys = [...new Set(config.groups.map(teachersKey))];
 const neutralFills = ["#eeece5", "#dedcd5", "#ceccc5", "#faf9f5"];
 const groupFill = () => "#eeece5";
 const lessons = config.lessons.map(lesson => ({...lesson, date:addDays(semesterStart,(lesson.week - 1) * 7 + lesson.weekday - 1), group:groupMap.get(lesson.groupId), slot:slotMap.get(lesson.slotId)})).sort((first, second) => first.date - second.date || first.periodStart - second.periodStart || first.group.number - second.group.number);
+const lessonSequenceLabels = new Map();
+for (const group of config.groups) {
+  let next = 1;
+  for (const lesson of lessons.filter(item => item.groupId === group.id).sort((first, second) => first.sequence - second.sequence)) {
+    const count = Math.max(1, Math.round((lesson.periodEnd - lesson.periodStart + 1) / 2));
+    lessonSequenceLabels.set(lesson.id, {start: next, count});
+    next += count;
+  }
+}
 let storageMessage = "";
 function schoolClock() {
   const parts = new Intl.DateTimeFormat("en-GB", {timeZone:config.timeZone,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(new Date());
@@ -1067,10 +1076,13 @@ function commitSelections(value) {
   render();
 }
 function courseTitle(lesson) { return lesson.group.label; }
+function circledSequence(start, count = 1) { const digits = ["", "①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩", "⑪", "⑫", "⑬", "⑭", "⑮", "⑯", "⑰", "⑱", "⑲", "⑳"]; return Array.from({length:count}, (_, index) => digits[start + index] || `(${start + index})`).join(""); }
 function courseCard(lesson) {
   const mine = myGroupIds().has(lesson.groupId);
   const check = config.checks.enabled && config.checks.sequences.includes(lesson.sequence);
-  return `<button type="button" class="course${mine ? " mine" : ""}${check ? " check" : ""}" data-lesson="${escapeHtml(lesson.id)}" style="--group-fill:${groupFill(lesson.group)}" aria-label="${escapeHtml(`${courseTitle(lesson)}，${lesson.periods}，教室${lesson.room}`)}"><span class="course-title">${mine ? '<span class="star">★ </span>' : ""}${escapeHtml(courseTitle(lesson))}</span><span class="course-periods">${escapeHtml(lesson.periods)}</span><span class="course-room"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 1 1 14 0Z"/><circle cx="12" cy="10" r="2.5"/></svg>${escapeHtml(lesson.room)}</span></button>`;
+  const numbering = lessonSequenceLabels.get(lesson.id) || {start: lesson.sequence, count: 1};
+  const cardTitle = `${courseTitle(lesson)} ${circledSequence(numbering.start, numbering.count)}`;
+  return `<button type="button" class="course${mine ? " mine" : ""}${check ? " check" : ""}" data-lesson="${escapeHtml(lesson.id)}" style="--group-fill:${groupFill(lesson.group)}" aria-label="${escapeHtml(`${cardTitle}，${lesson.periods}，教室${lesson.room}`)}"><span class="course-title">${mine ? '<span class="star">★ </span>' : ""}${escapeHtml(cardTitle)}</span><span class="course-periods">${escapeHtml(lesson.periods)}</span><span class="course-room"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 1 1 14 0Z"/><circle cx="12" cy="10" r="2.5"/></svg>${escapeHtml(lesson.room)}</span></button>`;
 }
 function lessonsOnDate(date) {
   return lessons.filter(lesson => dateKey(lesson.date) === dateKey(date) && state.visible.has(lesson.groupId));
